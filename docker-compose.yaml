@@ -1,0 +1,35 @@
+version: '3.5'
+
+# 网络配置
+networks:
+  deployment:
+    driver: ${NETWORKS_DRIVER}
+
+# 服务容器配置
+services:
+  # git repo
+  gitlab:
+    build:
+      context: ./gitlab
+
+  # cicd
+  jenkins:
+    build:
+      context: ./jenkins
+    environment:
+      - TZ=${TZ}
+      - DOCKER_TLS_CERTDIR=/certs
+    privileged: true
+    volumes:
+      - ${JENKINS_CERT_PATH}:/certs/client:ro
+      - ${JENKINS_DATA_PATH}:/var/jenkins_home
+    networks:
+      - deployment
+    ports:
+      - "${JENKINS_PORT}:2376"
+    deploy:
+      resources:
+        limits:
+          memory: ${LIMIT_MEMORY_CICD}
+    restart: always
+
