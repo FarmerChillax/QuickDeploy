@@ -20,6 +20,7 @@ services:
       - TZ=${TZ}
       - DOCKER_TLS_CERTDIR=/certs
     privileged: true
+    user: root
     volumes:
       - ${JENKINS_CERT_PATH}:/certs/client:ro
       - ${JENKINS_DATA_PATH}:/var/jenkins_home
