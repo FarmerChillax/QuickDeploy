@@ -8,9 +8,9 @@ networks:
 # 服务容器配置
 services:
   # git repo
-  gitlab:
-    build:
-      context: ./gitlab
+  # gitlab:
+  #   build:
+  #     context: ./gitlab
 
   # cicd
   jenkins:
@@ -27,6 +27,7 @@ services:
       - deployment
     ports:
       - "${JENKINS_PORT}:2376"
+      - "${JENKINS_WEB_PORT}:8080"
     deploy:
       resources:
         limits:

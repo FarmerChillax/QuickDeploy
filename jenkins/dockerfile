@@ -1,8 +1,9 @@
-FROM jenkins/jenkins:alpine-jdk17
+FROM jenkins/jenkins:latest
 
 LABEL maintainer="FarmerChillax <farmer.notscientific@gmail.com>"
 
 # run jenkins in cli:
+# docker pull jenkins/jenkins:latest
 # docker run \
 #   --name jenkins-docker \
 #   --rm \
