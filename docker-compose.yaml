@@ -8,14 +8,29 @@ networks:
 # 服务容器配置
 services:
   # git repo
-  # gitlab:
-  #   build:
-  #     context: ./gitlab
+  gitea:
+    build:
+      context: ./gitea
+    container_name: gitea
+    environment:
+      - USER_UID=1000
+      - USER_GID=1000
+    restart: always
+    networks:
+      - deployment
+    volumes:
+      - ./gitea/data:/data
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      - "3000:3000"
+      - "222:22"
 
   # cicd
   jenkins:
     build:
       context: ./jenkins
+    container_name: jenkins
     environment:
       - TZ=${TZ}
       - DOCKER_TLS_CERTDIR=/certs
