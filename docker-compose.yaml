@@ -1,52 +1,24 @@
-version: '3.5'
-
-# 网络配置
-networks:
-  deployment:
-    driver: ${NETWORKS_DRIVER}
-
-# 服务容器配置
+version: '3'
 services:
-  # git repo
-  gitea:
-    build:
-      context: ./gitea
-    container_name: gitea
-    environment:
-      - USER_UID=1000
-      - USER_GID=1000
-    restart: always
-    networks:
-      - deployment
-    volumes:
-      - ./gitea/data:/data
-      - /etc/timezone:/etc/timezone:ro
-      - /etc/localtime:/etc/localtime:ro
+  nsqlookupd:
+    image: nsqio/nsq
+    command: /nsqlookupd
     ports:
-      - "3000:3000"
-      - "222:22"
+      - "4160:4160"
+      - "4161:4161"
 
-  # cicd
-  jenkins:
-    build:
-      context: ./jenkins
-    container_name: jenkins
-    environment:
-      - TZ=${TZ}
-      - DOCKER_TLS_CERTDIR=/certs
-    privileged: true
-    user: root
-    volumes:
-      - ${JENKINS_CERT_PATH}:/certs/client:ro
-      - ${JENKINS_DATA_PATH}:/var/jenkins_home
-    networks:
-      - deployment
+  nsqd:
+    image: nsqio/nsq
+    command: /nsqd --lookupd-tcp-address=nsqlookupd:4160
+    depends_on:
+      - nsqlookupd
     ports:
-      - "${JENKINS_PORT}:2376"
-      - "${JENKINS_WEB_PORT}:8080"
-    deploy:
-      resources:
-        limits:
-          memory: ${LIMIT_MEMORY_CICD}
-    restart: always
-
+      - "4150:4150"
+      - "4151:4151"
+  nsqadmin:
+    image: nsqio/nsq
+    command: /nsqadmin --lookupd-http-address=nsqlookupd:4161
+    depends_on:
+      - nsqlookupd  
+    ports:
+      - "4171:4171"
