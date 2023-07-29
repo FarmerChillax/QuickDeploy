@@ -1,3 +1,0 @@
-FROM gitea/gitea:latest
-
-LABEL maintainer="FarmerChillax <farmer.notscientific@gmail.com>"
