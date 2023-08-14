@@ -1,9 +1,17 @@
 version: '3'
+
+# 网络配置
+networks:
+  devNetwork:
+    driver: ${NETWORKS_DRIVER}
+
 services:
   nsqlookupd:
     build:
       context: ./nsq
     command: /nsqlookupd
+    networks:
+      - devNetwork
     ports:
       - "${NSQLOOKUP_TCP_PORT}:4160"
       - "${NSQLOOKUP_HTTP_PORT}:4161"
@@ -17,6 +25,8 @@ services:
     ports:
       - "${NSQD_TCP_PORT}:4150"
       - "${NSQD_HTTP_PORT}:4151"
+    networks:
+      - devNetwork
   nsqadmin:
     build:
       context: ./nsq
@@ -25,3 +35,5 @@ services:
       - nsqlookupd  
     ports:
       - "${NSQ_ADMIN_PORT}:4171"
+    networks:
+      - devNetwork
