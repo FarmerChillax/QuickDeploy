@@ -2,51 +2,84 @@ version: '3.5'
 
 # 网络配置
 networks:
-  deployment:
+  devNetwork:
     driver: ${NETWORKS_DRIVER}
 
 # 服务容器配置
 services:
-  # git repo
-  gitea:
+  mysql:
     build:
-      context: ./gitea
-    container_name: gitea
-    environment:
-      - USER_UID=1000
-      - USER_GID=1000
-    restart: always
-    networks:
-      - deployment
-    volumes:
-      - ./gitea/data:/data
-      - /etc/timezone:/etc/timezone:ro
-      - /etc/localtime:/etc/localtime:ro
-    ports:
-      - "3000:3000"
-      - "222:22"
-
-  # cicd
-  jenkins:
-    build:
-      context: ./jenkins
-    container_name: jenkins
+      context: ./mysql
+    privileged: true
     environment:
       - TZ=${TZ}
-      - DOCKER_TLS_CERTDIR=/certs
-    privileged: true
-    user: root
+      - MYSQL_USER=${MYSQL_USERNAME}                  # 设置 Mysql 用户名称
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}              # 设置 Mysql 用户密码
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}    # 设置 Mysql root 用户密码
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
     volumes:
-      - ${JENKINS_CERT_PATH}:/certs/client:ro
-      - ${JENKINS_DATA_PATH}:/var/jenkins_home
-    networks:
-      - deployment
+      - ${MySQL_PATH}:/var/lib/mysql
     ports:
-      - "${JENKINS_PORT}:2376"
-      - "${JENKINS_WEB_PORT}:8080"
+      - "${MYSQL_PORT}:3306"                          # 设置容器3306端口映射指定宿主机端口
+    networks:
+      - devNetwork
     deploy:
       resources:
         limits:
-          memory: ${LIMIT_MEMORY_CICD}
+          memory: ${LIMIT_MEMORY_MYSQL}
     restart: always
 
+  redis:
+    build:
+      context: ./redis
+    environment:
+      - TZ=${TZ}
+    privileged: true
+    volumes:
+      - ${REDIS_PATH}:/data                 # 引用 .env 配置中 DATA_PATH_HOST 变量，将宿主机上存放 Redis 数据的目录挂载到容器中 /data 目录
+    ports:
+      - "${REDIS_PORT}:6379"                          # 设置容器6379端口映射指定宿主机端口
+    networks:
+      - devNetwork
+    deploy:
+      resources:
+        limits:
+          memory: ${LIMIT_MEMORY_REDIS}
+    restart: always
+
+  mongo:
+    build:
+      context: ./mongo
+    restart: always
+    privileged: true
+    environment:
+      - TZ=${TZ}
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_USERNAME}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_PASSWORD}
+    ports:
+      - "${MONGO_PORT}:27017"
+    volumes:
+      - ${MONGO_PATH}:/data/db
+    deploy:
+      resources:
+        limits:
+          memory: ${LIMIT_MEMORY_MONGO}
+    networks:
+      - devNetwork
+
+  mongo-express:
+    build:
+      context: ./mongo_express
+    restart: always
+    ports:
+      - ${MONGO_EXPRESS_PORT}:8081
+    environment:
+      - ME_CONFIG_MONGODB_ADMINUSERNAME=${MONGO_EXPRESS_USERNAME}
+      - ME_CONFIG_MONGODB_ADMINPASSWORD=${MONGO_EXPRESS_PASSWORD}
+      - ME_CONFIG_MONGODB_URL=mongodb://${MONGO_USERNAME}:${MONGO_PASSWORD}e@mongo:27017/
+    networks:
+      - devNetwork
+    deploy:
+      resources:
+        limits:
+          memory: 1G
