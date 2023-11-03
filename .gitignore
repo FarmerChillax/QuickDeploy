@@ -1,3 +1,6 @@
 jenkins/data/*
 jenkins/cert/*
 docker-compose.yaml
+data/**
+.env
+.env
