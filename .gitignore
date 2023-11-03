@@ -4,3 +4,7 @@ docker-compose.yaml
 data/**
 .env
 .env
+grafana/config.monitoring
+prometheus/config/alert.yml
+prometheus/config/prometheus.yml
+alertmanager/config/config.yml
