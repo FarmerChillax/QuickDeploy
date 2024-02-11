@@ -2,118 +2,113 @@ version: '3.5'
 
 # 网络配置
 networks:
-  devNetwork:
+  monitoring:
     driver: ${NETWORKS_DRIVER}
+
+
+volumes:
+  prometheus_data: {}
+  grafana_data: {}
 
 # 服务容器配置
 services:
-  mysql:
-    build:
-      context: ./mysql
-    privileged: true
-    environment:
-      - TZ=${TZ}
-      - MYSQL_USER=${MYSQL_USERNAME}                  # 设置 Mysql 用户名称
-      - MYSQL_PASSWORD=${MYSQL_PASSWORD}              # 设置 Mysql 用户密码
-      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}    # 设置 Mysql root 用户密码
-      - MYSQL_DATABASE=${MYSQL_DATABASE}
+  prometheus:
+    image: prom/prometheus:v2.37.6
+    container_name: prometheus
+    restart: always
     volumes:
-      - ${MySQL_PATH}:/var/lib/mysql
-    ports:
-      - "${MYSQL_PORT}:3306"                          # 设置容器3306端口映射指定宿主机端口
+      - /etc/localtime:/etc/localtime:ro
+      - ./prometheus/:/etc/prometheus/
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      #热加载配置
+      - '--web.enable-lifecycle'
+      #api配置
+      #- '--web.enable-admin-api'
+      #历史数据最大保留时间，默认15天
+      - '--storage.tsdb.retention.time=30d'  
     networks:
-      - devNetwork
-    deploy:
-      resources:
-        limits:
-          memory: ${LIMIT_MEMORY_MYSQL}
-    restart: always
-
-  redis:
-    build:
-      context: ./redis
-    command: redis-server --requirepass ${REDIS_PASSWORD}
-    environment:
-      - TZ=${TZ}
-    privileged: true
-    volumes:
-      - ${REDIS_PATH}:/data                 # 引用 .env 配置中 DATA_PATH_HOST 变量，将宿主机上存放 Redis 数据的目录挂载到容器中 /data 目录
+      - monitoring
+    links:
+      - alertmanager
+      - cadvisor
+      - node_exporter
+    expose:
+      - '9090'
     ports:
-      - "${REDIS_PORT}:6379"                          # 设置容器6379端口映射指定宿主机端口
-    networks:
-      - devNetwork
-    deploy:
-      resources:
-        limits:
-          memory: ${LIMIT_MEMORY_REDIS}
-    restart: always
-
-  mongo:
-    build:
-      context: ./mongo
-    restart: always
-    privileged: true
-    environment:
-      - TZ=${TZ}
-      - MONGO_INITDB_ROOT_USERNAME=${MONGO_USERNAME}
-      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_PASSWORD}
-    ports:
-      - "${MONGO_PORT}:27017"
-    volumes:
-      - ${MONGO_PATH}:/data/db
-    deploy:
-      resources:
-        limits:
-          memory: ${LIMIT_MEMORY_MONGO}
-    networks:
-      - devNetwork
-
-  mongo-express:
-    build:
-      context: ./mongo_express
-    restart: always
-    ports:
-      - ${MONGO_EXPRESS_PORT}:8081
-    environment:
-      - ME_CONFIG_MONGODB_ADMINUSERNAME=${MONGO_EXPRESS_USERNAME}
-      - ME_CONFIG_MONGODB_ADMINPASSWORD=${MONGO_EXPRESS_PASSWORD}
-      - ME_CONFIG_MONGODB_URL=mongodb://${MONGO_USERNAME}:${MONGO_PASSWORD}@mongo:27017/
-    networks:
-      - devNetwork
-    deploy:
-      resources:
-        limits:
-          memory: 1G
-
-  nsqlookupd:
-    build:
-      context: ./nsq
-    command: /nsqlookupd
-    networks:
-      - devNetwork
-    ports:
-      - "${NSQLOOKUP_TCP_PORT}:4160"
-      - "${NSQLOOKUP_HTTP_PORT}:4161"
-
-  nsqd:
-    build:
-      context: ./nsq
-    command: /nsqd -broadcast-address=${BROADCAST_ADDR} --lookupd-tcp-address=nsqlookupd:4160
+      - 9090:9090
     depends_on:
-      - nsqlookupd
-    ports:
-      - "${NSQD_TCP_PORT}:4150"
-      - "${NSQD_HTTP_PORT}:4151"
+      - cadvisor
+
+  alertmanager:
+    image: prom/alertmanager:v0.25.0
+    container_name: alertmanager
+    restart: always
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ./alertmanager/:/etc/alertmanager/
+    command:
+      - '--config.file=/etc/alertmanager/config.yml'
+      - '--storage.path=/alertmanager'
     networks:
-      - devNetwork
-  
-  nsqadmin:
-    build:
-      context: ./nsq
-    command: /nsqadmin --lookupd-http-address=nsqlookupd:4161
+      - monitoring
+    expose:
+      - '9093'
+    ports:
+      - 9093:9093
+
+  cadvisor:
+    image: google/cadvisor:latest
+    container_name: cadvisor
+    restart: always
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /:/rootfs:ro
+      - /var/run:/var/run:rw
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    networks:
+      - monitoring
+    expose:
+      - '8080'
+
+  node_exporter:
+    image: prom/node-exporter:v1.5.0
+    container_name: node-exporter
+    restart: always
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command: 
+      - '--path.procfs=/host/proc' 
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.ignored-mount-points=^/(sys|proc|dev|host|etc|rootfs/var/lib/docker)($$|/)'
+    networks:
+      - monitoring
+    ports:
+      - '9100:9100'
+
+  grafana:
+    image: grafana/grafana:9.4.3
+    container_name: grafana
+    restart: always
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning/:/etc/grafana/provisioning/
+    env_file:
+      - ./grafana/config.monitoring
+    networks:
+      - monitoring
+    links:
+      - prometheus
+    ports:
+      - 3000:3000
     depends_on:
-      - nsqlookupd  
-    ports:
-      - "${NSQ_ADMIN_PORT}:4171"
-    networks:
-      - devNetwork
+      - prometheus
