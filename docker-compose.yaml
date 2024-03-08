@@ -1,52 +1,24 @@
-version: '3.5'
+version: '3'
 
-# 网络配置
-networks:
-  deployment:
-    driver: ${NETWORKS_DRIVER}
-
-# 服务容器配置
 services:
-  # git repo
-  gitea:
-    build:
-      context: ./gitea
-    container_name: gitea
+  cogpt-api:
+    image: geniucker/cogpt:latest
     environment:
-      - USER_UID=1000
-      - USER_GID=1000
-    restart: always
-    networks:
-      - deployment
-    volumes:
-      - ./gitea/data:/data
-      - /etc/timezone:/etc/timezone:ro
-      - /etc/localtime:/etc/localtime:ro
+      - HOST=0.0.0.0
+      - SHARE_TOKEN=${SHARE_TOKEN}
     ports:
-      - "3000:3000"
-      - "222:22"
+      - ${API_PORT}:8080
+    volumes:
+      - ./db:/app/db
+      - ./log:/app/log
+    restart: unless-stopped
+    container_name: cogpt-api
 
-  # cicd
-  jenkins:
-    build:
-      context: ./jenkins
-    container_name: jenkins
+  web-ui:
+    image: yidadaa/chatgpt-next-web
     environment:
-      - TZ=${TZ}
-      - DOCKER_TLS_CERTDIR=/certs
-    privileged: true
-    user: root
-    volumes:
-      - ${JENKINS_CERT_PATH}:/certs/client:ro
-      - ${JENKINS_DATA_PATH}:/var/jenkins_home
-    networks:
-      - deployment
+      - BASE_URL=${BASE_URL}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - CODE=${WEB_UI_CODE}
     ports:
-      - "${JENKINS_PORT}:2376"
-      - "${JENKINS_WEB_PORT}:8080"
-    deploy:
-      resources:
-        limits:
-          memory: ${LIMIT_MEMORY_CICD}
-    restart: always
-
+      - ${WEB_PORT}:3000

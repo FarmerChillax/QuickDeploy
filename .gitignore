@@ -1,2 +1,8 @@
 jenkins/data/*
 jenkins/cert/*
+.env
+db/
+cogpt*
+gen-share-token*
+
+
